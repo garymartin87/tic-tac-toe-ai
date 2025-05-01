@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated } from 'react-native';
 import { getAIMove, Board } from './services/aiService';
 
 enum Player {
@@ -13,28 +13,66 @@ const emptyBoard: Board = [
   ['', '', '']
 ];
 
+type WinningLine = { row: number; col: number }[];
+
 export default function App(): JSX.Element {
   const [board, setBoard] = useState<Board>(emptyBoard);
   const [currentPlayer, setCurrentPlayer] = useState<Player>(Player.X);
   const [currentTurnText, setCurrentTurnText] = useState<string>('Your turn (X)');
+  const [winningLine, setWinningLine] = useState<WinningLine>([]);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const checkWinner = (b: Board): string | null => {
+  const startWinAnimation = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.5,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.8,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1.2,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  const checkWinner = (b: Board): { winner: string | null; line: WinningLine } => {
     const lines = [
-      [b[0][0], b[0][1], b[0][2]],
-      [b[1][0], b[1][1], b[1][2]],
-      [b[2][0], b[2][1], b[2][2]],
-      [b[0][0], b[1][0], b[2][0]],
-      [b[0][1], b[1][1], b[2][1]],
-      [b[0][2], b[1][2], b[2][2]],
-      [b[0][0], b[1][1], b[2][2]],
-      [b[0][2], b[1][1], b[2][0]]
+      // Rows
+      [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }],
+      [{ row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 }],
+      [{ row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 }],
+      // Columns
+      [{ row: 0, col: 0 }, { row: 1, col: 0 }, { row: 2, col: 0 }],
+      [{ row: 0, col: 1 }, { row: 1, col: 1 }, { row: 2, col: 1 }],
+      [{ row: 0, col: 2 }, { row: 1, col: 2 }, { row: 2, col: 2 }],
+      // Diagonals
+      [{ row: 0, col: 0 }, { row: 1, col: 1 }, { row: 2, col: 2 }],
+      [{ row: 0, col: 2 }, { row: 1, col: 1 }, { row: 2, col: 0 }]
     ];
 
-    for (let line of lines) {
-      if (line.every(cell => cell === Player.X)) return Player.X;
-      if (line.every(cell => cell === Player.O)) return Player.O;
+    for (const line of lines) {
+      const [pos1, pos2, pos3] = line;
+      const cellA = b[pos1.row][pos1.col];
+      const cellB = b[pos2.row][pos2.col];
+      const cellC = b[pos3.row][pos3.col];
+      
+      if (cellA !== '' && cellA === cellB && cellA === cellC) {
+        return { winner: cellA, line };
+      }
     }
-    return b.flat().includes('') ? null : 'Draw';
+    return { winner: b.flat().includes('') ? null : 'Draw', line: [] };
   };
 
   const handlePress = async (row: number, col: number) => {
@@ -48,8 +86,10 @@ export default function App(): JSX.Element {
     setCurrentTurnText("AI's turn (O)...");
 
     const result = checkWinner(newBoard);
-    if (result) {
-      endGame(result);
+    if (result.winner) {
+      setWinningLine(result.line);
+      startWinAnimation();
+      endGame(result.winner);
       return;
     }
 
@@ -76,7 +116,11 @@ export default function App(): JSX.Element {
     setCurrentTurnText('Your turn (X)');
 
     const finalResult = checkWinner(iaBoard);
-    if (finalResult) endGame(finalResult);
+    if (finalResult.winner) {
+      setWinningLine(finalResult.line);
+      startWinAnimation();
+      endGame(finalResult.winner);
+    }
   };
 
   const endGame = (winner: string) => {
@@ -84,7 +128,7 @@ export default function App(): JSX.Element {
     let title = '';
     
     if (winner === 'Draw') {
-      title = 'Game Over';
+      title = 'It is a draw!';
       message = "It's a draw!";
     } else if (winner === Player.X) {
       title = 'Victory!';
@@ -100,7 +144,12 @@ export default function App(): JSX.Element {
       setBoard(emptyBoard);
       setCurrentPlayer(Player.X);
       setCurrentTurnText('Your turn (X)');
+      setWinningLine([]);
     }, 2000);
+  };
+
+  const isWinningCell = (row: number, col: number): boolean => {
+    return winningLine.some(pos => pos.row === row && pos.col === col);
   };
 
   return (
@@ -113,12 +162,31 @@ export default function App(): JSX.Element {
       {board.map((row, i) => (
         <View key={i} style={styles.row}>
           {row.map((cell, j) => (
-            <TouchableOpacity key={j} style={styles.cell} onPress={() => handlePress(i, j)}>
-              <Text style={[
-                styles.cellText,
-                cell === Player.X && { color: '#7CB9E8' }, // Pastel blue for X
-                cell === Player.O && { color: '#FFB6C1' }  // Pastel pink for O
-              ]}>{cell}</Text>
+            <TouchableOpacity 
+              key={j} 
+              style={styles.cell} 
+              onPress={() => handlePress(i, j)}
+            >
+              {isWinningCell(i, j) ? (
+                <Animated.Text 
+                  style={[
+                    styles.cellText,
+                    cell === Player.X && { color: '#7CB9E8' },
+                    cell === Player.O && { color: '#FFB6C1' },
+                    { transform: [{ scale: scaleAnim }] }
+                  ]}
+                >
+                  {cell}
+                </Animated.Text>
+              ) : (
+                <Text style={[
+                  styles.cellText,
+                  cell === Player.X && { color: '#7CB9E8' }, // Pastel blue for X
+                  cell === Player.O && { color: '#FFB6C1' }  // Pastel pink for O
+                ]}>
+                  {cell}
+                </Text>
+              )}
             </TouchableOpacity>
           ))}
         </View>
