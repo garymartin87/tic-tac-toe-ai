@@ -26,7 +26,7 @@ export default function App(): JSX.Element {
   const [currentTextColor, setCurrentTextColor] = useState('#fff');
 
   const startWinAnimation = () => {
-    Animated.sequence([
+    const animation = Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 1.5,
         duration: 500,
@@ -47,7 +47,9 @@ export default function App(): JSX.Element {
         duration: 200,
         useNativeDriver: true,
       })
-    ]).start();
+    ]);
+
+    Animated.loop(animation).start();
   };
 
   const checkWinner = (b: Board): { winner: string | null; line: WinningLine } => {
@@ -135,6 +137,7 @@ export default function App(): JSX.Element {
   };
 
   const resetGame = () => {
+    scaleAnim.setValue(1);
     setBoard(emptyBoard);
     setCurrentPlayer(Player.X);
     setCurrentTurnText('Your turn (X)');
@@ -150,10 +153,10 @@ export default function App(): JSX.Element {
     if (winner === 'Draw') {
       message = "It's a draw!";
     } else if (winner === Player.X) {
-      message = 'Congratulations! You won! 🎉';
+      message = 'You won! 🎉';
       messageColor = '#7CB9E8';  // player X color
     } else {
-      message = 'AI wins! Better luck next time! 😠';
+      message = 'AI wins! 🤖';
       messageColor = '#FFB6C1';  // matching AI/O symbol color
     }
     
@@ -161,6 +164,7 @@ export default function App(): JSX.Element {
     setCurrentTurnText(message);
     setCurrentTextColor(messageColor);
     setGameEnded(true);
+    startWinAnimation(); // Start animation when game ends
   };
 
   const isWinningCell = (row: number, col: number): boolean => {
@@ -177,7 +181,9 @@ export default function App(): JSX.Element {
               !gameEnded && currentPlayer === Player.X && { color: '#7CB9E8' },
               !gameEnded && currentPlayer === Player.O && { color: '#FFB6C1' },
               gameEnded && { color: currentTextColor }
-            ]}>{currentTurnText}</Text>
+            ]}>
+              {currentTurnText}
+            </Text>
             {isAIThinking && (
               <ActivityIndicator 
                 style={styles.loadingIndicator} 
