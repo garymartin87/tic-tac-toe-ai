@@ -58,22 +58,7 @@ export default function TicTacToe(): React.ReactElement {
     }
 
     setIsAIThinking(true);
-
-    let iaMove: [number, number] | null = null;
-    let retries = 3;
-
-    while (retries-- > 0) {
-      iaMove = await getAIMove(newBoard);
-      if (!iaMove) {
-        setIsAIThinking(false);
-        return;
-      }
-      const [i, j] = iaMove;
-      if (newBoard[i]?.[j] === '') break;
-      console.warn('AI selected an already occupied cell, retrying...', i, j);
-      iaMove = null;
-    }
-
+    const iaMove = await getAIMove(newBoard);
     setIsAIThinking(false);
 
     if (!iaMove) return;
