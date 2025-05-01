@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { OPENROUTER_API_KEY } from './Config';
 
 // Removed OpenAI SDK, using fetch instead
 
@@ -88,34 +89,64 @@ export default function App(): JSX.Element {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer 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`
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'openai/gpt-3.5-turbo',
+          model: 'anthropic/claude-3-sonnet',
           messages: [
             {
               role: 'system',
-              content:
-                "You are a Tic Tac Toe AI. Always respond ONLY with the coordinates of your move in the format: row,column (e.g. 1,2). Do not add anything else. Never pick a cell that is already taken."
+              content: `You are a Tic Tac Toe AI. Your task is to:
+                1. Analyze the current board state
+                2. Choose an empty cell (marked as '') for your move
+                3. Respond ONLY with the coordinates in the format: row,column (e.g. 1,2)
+                4. NEVER pick a cell that is already taken (marked as 'X' or 'O')
+                5. Make strategic moves to win or prevent the opponent from winning
+
+                The board is a 3x3 grid where:
+                - Empty cells are marked as ''
+                - X represents the player's moves
+                - O represents your moves (the AI)
+
+                IMPORTANT RULES:
+                - Only respond with the coordinates, nothing else
+                - Double-check that your chosen cell is empty before responding
+                - If you're unsure, choose a different cell
+                - The response must be exactly in the format: row,column (e.g. 1,2)
+                - Do not include any explanation or additional text`
             },
             {
               role: 'user',
-              content: `Here is the current board as a 3x3 array with X, O or empty strings. Pick your next move and respond only with row,column:
-${JSON.stringify(
-                boardState
-              )}`
+              content: `Current board state (row,column format):
+                ${boardState.map((row, i) => 
+                  row.map((cell, j) => `${i},${j}: ${cell || 'empty'}`).join(' | ')
+                ).join('\n')}
+
+                Available empty cells:
+                ${boardState.flatMap((row, i) => 
+                  row.map((cell, j) => cell === '' ? `${i},${j}` : null)
+                ).filter(Boolean).join(', ')}
+
+                Choose your next move. Respond only with row,column.`
             }
-          ]
+          ],
+          temperature: 0.1
         })
       });
 
       const data = await response.json();
+      console.log('AI raw response:', data);
       const content = data.choices?.[0]?.message?.content?.trim();
-      console.log('AI raw response:', content);
+      console.log('AI decision:', content);
 
       const match = content?.match(/\d+/g);
       if (match && match.length === 2) {
-        return [parseInt(match[0], 10), parseInt(match[1], 10)];
+        const [row, col] = [parseInt(match[0], 10), parseInt(match[1], 10)];
+        if (boardState[row]?.[col] === '') {
+          return [row, col];
+        }
+        console.warn('AI selected an already occupied cell:', row, col);
+        return null;
       }
       console.warn('Invalid AI response format:', content);
       return null;
