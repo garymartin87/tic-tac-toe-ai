@@ -80,8 +80,22 @@ export default function App(): JSX.Element {
   };
 
   const endGame = (winner: string) => {
-    setCurrentTurnText(winner === 'Draw' ? "It's a draw!" : `${winner} wins!`);
-    Alert.alert('Game Over', winner === 'Draw' ? "It's a draw!" : `${winner} wins!`);
+    let message = '';
+    let title = '';
+    
+    if (winner === 'Draw') {
+      title = 'Game Over';
+      message = "It's a draw!";
+    } else if (winner === Player.X) {
+      title = 'Victory!';
+      message = 'Congratulations! You won! 🎉';
+    } else {
+      title = 'Defeat';
+      message = 'AI wins! Better luck next time! 😠';
+    }
+    
+    setCurrentTurnText(message);
+    Alert.alert(title, message);
     setTimeout(() => {
       setBoard(emptyBoard);
       setCurrentPlayer(Player.X);
