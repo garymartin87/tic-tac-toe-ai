@@ -24,6 +24,11 @@ const getRandomEmptyCell = (boardState: Board): [number, number] | null => {
   return null;
 };
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const getAIMove = async (boardState: Board): Promise<[number, number] | null> => {
   if (!OPENROUTER_API_KEY) {
     console.error('Missing OPENROUTER_API_KEY in environment variables');
@@ -31,21 +36,24 @@ export const getAIMove = async (boardState: Board): Promise<[number, number] | n
     return getRandomEmptyCell(boardState);
   }
 
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'Tic Tac Toe AI'
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3-sonnet',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a Tic Tac Toe AI. Your task is to:
+  let retries = MAX_RETRIES;
+  
+  while (retries > 0) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'Tic Tac Toe AI'
+        },
+        body: JSON.stringify({
+          model: 'anthropic/claude-3-sonnet',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a Tic Tac Toe AI. Your task is to:
 1. Analyze the current board state
 2. Choose an empty cell (marked as '') for your move
 3. Respond ONLY with the coordinates in the format: row,column (e.g. 1,2)
@@ -63,10 +71,10 @@ IMPORTANT RULES:
 - If you're unsure, choose a different cell
 - The response must be exactly in the format: row,column (e.g. 1,2)
 - Do not include any explanation or additional text`
-          },
-          {
-            role: 'user',
-            content: `Current board state (row,column format):
+            },
+            {
+              role: 'user',
+              content: `Current board state (row,column format):
 ${boardState.map((row, i) => 
   row.map((cell, j) => `${i},${j}: ${cell || 'empty'}`).join(' | ')
 ).join('\n')}
@@ -77,31 +85,43 @@ ${boardState.flatMap((row, i) =>
 ).filter(Boolean).join(', ')}
 
 Choose your next move. Respond only with row,column.`
-          }
-        ],
-        temperature: 0.1
-      })
-    });
+            }
+          ],
+          temperature: 0.1
+        })
+      });
 
-    const data = await response.json();
-    console.log('AI raw response:', data);
-    const content = data.choices?.[0]?.message?.content?.trim();
-    console.log('AI decision:', content);
+      const data = await response.json();
+      console.log('AI raw response:', data);
+      const content = data.choices?.[0]?.message?.content?.trim();
+      console.log('AI decision:', content);
 
-    const match = content?.match(/\d+/g);
-    if (match && match.length === 2) {
-      const [row, col] = [parseInt(match[0], 10), parseInt(match[1], 10)];
-      if (boardState[row]?.[col] === '') {
-        return [row, col];
+      const match = content?.match(/\d+/g);
+      if (match && match.length === 2) {
+        const [row, col] = [parseInt(match[0], 10), parseInt(match[1], 10)];
+        if (boardState[row]?.[col] === '') {
+          return [row, col];
+        }
+        console.warn('AI selected an already occupied cell:', row, col);
+      } else {
+        console.warn('Invalid AI response format:', content);
       }
-      console.warn('AI selected an already occupied cell:', row, col);
-      return getRandomEmptyCell(boardState);
+
+      retries--;
+      if (retries > 0) {
+        console.log(`Retrying AI move... (${retries} attempts remaining)`);
+        await sleep(RETRY_DELAY);
+      }
+    } catch (err) {
+      console.error('AI Error:', err);
+      retries--;
+      if (retries > 0) {
+        console.log(`Retrying after error... (${retries} attempts remaining)`);
+        await sleep(RETRY_DELAY);
+      }
     }
-    console.warn('Invalid AI response format:', content);
-    return getRandomEmptyCell(boardState);
-  } catch (err) {
-    console.error('AI Error:', err);
-    Alert.alert('Error', 'Failed to get AI move.');
-    return getRandomEmptyCell(boardState);
   }
+
+  console.log('All retries exhausted, falling back to random move');
+  return getRandomEmptyCell(boardState);
 }; 
