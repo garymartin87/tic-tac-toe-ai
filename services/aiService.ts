@@ -3,11 +3,32 @@ import { OPENROUTER_API_KEY } from '@env';
 
 export type Board = string[][];
 
+const getRandomEmptyCell = (boardState: Board): [number, number] | null => {
+  const emptyCells: [number, number][] = [];
+  
+  // Find all empty cells
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      if (boardState[i][j] === '') {
+        emptyCells.push([i, j]);
+      }
+    }
+  }
+  
+  // If there are empty cells, return a random one
+  if (emptyCells.length > 0) {
+    const randomIndex = Math.floor(Math.random() * emptyCells.length);
+    return emptyCells[randomIndex];
+  }
+  
+  return null;
+};
+
 export const getAIMove = async (boardState: Board): Promise<[number, number] | null> => {
   if (!OPENROUTER_API_KEY) {
     console.error('Missing OPENROUTER_API_KEY in environment variables');
     Alert.alert('Error', 'API key not configured');
-    return null;
+    return getRandomEmptyCell(boardState);
   }
 
   try {
@@ -74,13 +95,13 @@ Choose your next move. Respond only with row,column.`
         return [row, col];
       }
       console.warn('AI selected an already occupied cell:', row, col);
-      return null;
+      return getRandomEmptyCell(boardState);
     }
     console.warn('Invalid AI response format:', content);
-    return null;
+    return getRandomEmptyCell(boardState);
   } catch (err) {
     console.error('AI Error:', err);
     Alert.alert('Error', 'Failed to get AI move.');
-    return null;
+    return getRandomEmptyCell(boardState);
   }
 }; 
