@@ -12,7 +12,8 @@
   "dependencies": {
     "openai": "^4.93.0",
     "react": "19.0.0",
-    "react-native": "0.79.0"
+    "react-native": "0.79.0",
+    "react-native-dotenv": "^3.4.11"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
