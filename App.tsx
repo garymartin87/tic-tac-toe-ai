@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated, ActivityIndicator } from 'react-native';
 import { getAIMove, Board } from './services/aiService';
 
 enum Player {
@@ -20,7 +20,10 @@ export default function App(): JSX.Element {
   const [currentPlayer, setCurrentPlayer] = useState<Player>(Player.X);
   const [currentTurnText, setCurrentTurnText] = useState<string>('Your turn (X)');
   const [winningLine, setWinningLine] = useState<WinningLine>([]);
+  const [isAIThinking, setIsAIThinking] = useState(false);
+  const [gameEnded, setGameEnded] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [currentTextColor, setCurrentTextColor] = useState('#fff');
 
   const startWinAnimation = () => {
     Animated.sequence([
@@ -75,6 +78,7 @@ export default function App(): JSX.Element {
     return { winner: b.flat().includes('') ? null : 'Draw', line: [] };
   };
 
+
   const handlePress = async (row: number, col: number) => {
     if (board[row][col] !== '' || currentPlayer !== Player.X) return;
 
@@ -83,10 +87,12 @@ export default function App(): JSX.Element {
     );
     setBoard(newBoard);
     setCurrentPlayer(Player.O);
-    setCurrentTurnText("AI's turn (O)...");
+    setCurrentTurnText("AI's turn (O)");
+    setIsAIThinking(true);
 
     const result = checkWinner(newBoard);
     if (result.winner) {
+      setIsAIThinking(false);
       setWinningLine(result.line);
       startWinAnimation();
       endGame(result.winner);
@@ -98,12 +104,17 @@ export default function App(): JSX.Element {
 
     while (retries-- > 0) {
       iaMove = await getAIMove(newBoard);
-      if (!iaMove) return;
+      if (!iaMove) {
+        setIsAIThinking(false);
+        return;
+      }
       const [i, j] = iaMove;
       if (newBoard[i]?.[j] === '') break;
       console.warn('AI selected an already occupied cell, retrying...', i, j);
       iaMove = null;
     }
+
+    setIsAIThinking(false);
 
     if (!iaMove) return;
 
@@ -123,29 +134,33 @@ export default function App(): JSX.Element {
     }
   };
 
+  const resetGame = () => {
+    setBoard(emptyBoard);
+    setCurrentPlayer(Player.X);
+    setCurrentTurnText('Your turn (X)');
+    setWinningLine([]);
+    setIsAIThinking(false);
+    setGameEnded(false);
+  };
+
   const endGame = (winner: string) => {
     let message = '';
-    let title = '';
+    let messageColor = '#fff';  // default white color
     
     if (winner === 'Draw') {
-      title = 'It is a draw!';
       message = "It's a draw!";
     } else if (winner === Player.X) {
-      title = 'Victory!';
       message = 'Congratulations! You won! 🎉';
+      messageColor = '#7CB9E8';  // player X color
     } else {
-      title = 'Defeat';
       message = 'AI wins! Better luck next time! 😠';
+      messageColor = '#FFB6C1';  // matching AI/O symbol color
     }
     
+    setIsAIThinking(false);
     setCurrentTurnText(message);
-    Alert.alert(title, message);
-    setTimeout(() => {
-      setBoard(emptyBoard);
-      setCurrentPlayer(Player.X);
-      setCurrentTurnText('Your turn (X)');
-      setWinningLine([]);
-    }, 2000);
+    setCurrentTextColor(messageColor);
+    setGameEnded(true);
   };
 
   const isWinningCell = (row: number, col: number): boolean => {
@@ -154,43 +169,67 @@ export default function App(): JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={[
-        styles.turnText,
-        currentPlayer === Player.X && { color: '#7CB9E8' }, // Pastel blue for X
-        currentPlayer === Player.O && { color: '#FFB6C1' }  // Pastel pink for O
-      ]}>{currentTurnText}</Text>
-      {board.map((row, i) => (
-        <View key={i} style={styles.row}>
-          {row.map((cell, j) => (
-            <TouchableOpacity 
-              key={j} 
-              style={styles.cell} 
-              onPress={() => handlePress(i, j)}
-            >
-              {isWinningCell(i, j) ? (
-                <Animated.Text 
-                  style={[
-                    styles.cellText,
-                    cell === Player.X && { color: '#7CB9E8' },
-                    cell === Player.O && { color: '#FFB6C1' },
-                    { transform: [{ scale: scaleAnim }] }
-                  ]}
-                >
-                  {cell}
-                </Animated.Text>
-              ) : (
-                <Text style={[
-                  styles.cellText,
-                  cell === Player.X && { color: '#7CB9E8' }, // Pastel blue for X
-                  cell === Player.O && { color: '#FFB6C1' }  // Pastel pink for O
-                ]}>
-                  {cell}
-                </Text>
-              )}
-            </TouchableOpacity>
-          ))}
+      <View style={styles.gameContainer}>
+        <View style={styles.turnContainer}>
+          <View style={styles.turnTextContainer}>
+            <Text style={[
+              styles.turnText,
+              !gameEnded && currentPlayer === Player.X && { color: '#7CB9E8' },
+              !gameEnded && currentPlayer === Player.O && { color: '#FFB6C1' },
+              gameEnded && { color: currentTextColor }
+            ]}>{currentTurnText}</Text>
+            {isAIThinking && (
+              <ActivityIndicator 
+                style={styles.loadingIndicator} 
+                color="#FFB6C1"
+                size="small"
+              />
+            )}
+          </View>
         </View>
-      ))}
+        {board.map((row, i) => (
+          <View key={i} style={styles.row}>
+            {row.map((cell, j) => (
+              <View key={j} style={styles.cellBorder}>
+                <TouchableOpacity 
+                  style={styles.cell} 
+                  onPress={() => handlePress(i, j)}
+                  activeOpacity={0.7}
+                  disabled={gameEnded}
+                >
+                  {isWinningCell(i, j) ? (
+                    <Animated.Text 
+                      style={[
+                        styles.cellText,
+                        cell === Player.X && { color: '#7CB9E8' },
+                        cell === Player.O && { color: '#FFB6C1' },
+                        { transform: [{ scale: scaleAnim }] }
+                      ]}
+                    >
+                      {cell}
+                    </Animated.Text>
+                  ) : (
+                    <Text style={[
+                      styles.cellText,
+                      cell === Player.X && { color: '#7CB9E8' },
+                      cell === Player.O && { color: '#FFB6C1' }
+                    ]}>
+                      {cell}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+      <TouchableOpacity 
+        style={styles.resetButton}
+        onPress={resetGame}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.resetButtonText}>RESET GAME</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -200,28 +239,67 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#222'
+    backgroundColor: '#222',
+    paddingBottom: 40
+  },
+  gameContainer: {
+    alignItems: 'center'
+  },
+  turnContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 30,
+    minHeight: 40
+  },
+  turnTextContainer: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center'
+  },
+  turnText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    textAlignVertical: 'center'
+  },
+  loadingIndicator: {
+    marginLeft: 4
   },
   row: {
     flexDirection: 'row'
   },
-  cell: {
+  cellBorder: {
     width: 100,
     height: 100,
     borderWidth: 1,
     borderColor: '#fff',
+  },
+  cell: {
+    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+    backgroundColor: '#222'
   },
   cellText: {
     fontSize: 48,
     fontWeight: 'bold',
     color: '#fff'
   },
-  turnText: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  resetButton: {
+    marginTop: 40,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#444',
+    borderRadius: 8,
+    elevation: 3,
+  },
+  resetButtonText: {
     color: '#fff',
-    marginBottom: 20
-  }
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 });
