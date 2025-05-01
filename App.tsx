@@ -105,12 +105,20 @@ export default function App(): JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.turnText}>{currentTurnText}</Text>
+      <Text style={[
+        styles.turnText,
+        currentPlayer === Player.X && { color: '#7CB9E8' }, // Pastel blue for X
+        currentPlayer === Player.O && { color: '#FFB6C1' }  // Pastel pink for O
+      ]}>{currentTurnText}</Text>
       {board.map((row, i) => (
         <View key={i} style={styles.row}>
           {row.map((cell, j) => (
             <TouchableOpacity key={j} style={styles.cell} onPress={() => handlePress(i, j)}>
-              <Text style={styles.cellText}>{cell}</Text>
+              <Text style={[
+                styles.cellText,
+                cell === Player.X && { color: '#7CB9E8' }, // Pastel blue for X
+                cell === Player.O && { color: '#FFB6C1' }  // Pastel pink for O
+              ]}>{cell}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -138,11 +146,13 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   cellText: {
-    fontSize: 32,
+    fontSize: 48,
+    fontWeight: 'bold',
     color: '#fff'
   },
   turnText: {
     fontSize: 20,
+    fontWeight: 'bold',
     color: '#fff',
     marginBottom: 20
   }
