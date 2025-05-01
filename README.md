@@ -7,6 +7,7 @@ The game integrates with OpenRouter.ai's API to provide intelligent gameplay usi
 The implementation includes a retry system that attempts up to 3 times to get a valid move from the AI when it either fails to respond or suggests an already occupied position. If all retries are exhausted, the system falls back to a random valid move to ensure the game can continue.
 
 ## Demo
+https://github.com/user-attachments/assets/2dbbb6fa-591e-4490-8a24-d498b12d9eec
 
 ## Prerequisites
 
